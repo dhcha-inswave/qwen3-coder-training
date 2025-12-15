@@ -7,14 +7,14 @@ import torch
 import transformers
 import utils
 from torch.utils.data import Dataset
-from transformers import Trainer, BitsAndBytesConfig
+from transformers import Trainer
 import torch.distributed as dist
 import sys
 import os
 import numpy as np
 from utils import utils
 from utils import training_datasets
-from peft import get_peft_model, PeftConfig, prepare_model_for_kbit_training
+from peft import get_peft_model, PeftConfig
 IGNORE_INDEX = -100 #default ignore_index = 100 in transformers
 logging.basicConfig(level=logging.DEBUG)  
 @dataclass
@@ -38,9 +38,6 @@ class TrainingArguments(transformers.TrainingArguments):
     truncate_source: bool = field(default=False)
     use_peft: bool = field(default=False)
     peft_config_path: str = field(default=None)
-    use_qlora: bool = field(default=False, metadata={"help": "Enable QLoRA 4-bit quantization training."})
-    bnb_4bit_quant_type: str = field(default="nf4", metadata={"help": "Quantization type: nf4 or fp4."})
-    bnb_4bit_compute_dtype: str = field(default="bfloat16", metadata={"help": "Compute dtype: bfloat16 or float16."})
 
 def smart_tokenizer_and_embedding_resize(
     special_tokens_dict: Dict,
@@ -209,33 +206,13 @@ def train():
     args = {**model_args.__dict__, **data_args.__dict__, **training_args.__dict__}
     args = argparse.Namespace(**args)
     #logging.info(args)
-
-    # QLoRA: 4-bit quantization config
-    bnb_config = None
-    if training_args.use_qlora:
-        compute_dtype = torch.bfloat16 if training_args.bnb_4bit_compute_dtype == "bfloat16" else torch.float16
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type=training_args.bnb_4bit_quant_type,
-            bnb_4bit_compute_dtype=compute_dtype,
-            bnb_4bit_use_double_quant=True,
-        )
-        logging.info(f"QLoRA enabled: 4-bit quantization with {training_args.bnb_4bit_quant_type}")
-
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
-        quantization_config=bnb_config,
         attn_implementation="flash_attention_2" if model_args.use_flash_attention else None,
-        trust_remote_code=True,
-        torch_dtype=torch.bfloat16 if training_args.use_qlora else None,
+        trust_remote_code = True
     )
-
-    # QLoRA: prepare model for kbit training
-    if training_args.use_qlora:
-        model = prepare_model_for_kbit_training(model)
-
-    if training_args.use_peft or training_args.use_qlora:
+    if training_args.use_peft:
         peft_config = PeftConfig.from_pretrained(training_args.peft_config_path)
         model.enable_input_require_grads()
         model = get_peft_model(model, peft_config)
