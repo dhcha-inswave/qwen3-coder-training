@@ -55,9 +55,12 @@ export NCCL_DEBUG=WARN
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # 파라미터 설정
+EXPERIMENT_NAME=${EXPERIMENT_NAME:-"qwen3_30b_qlora"}
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
 DATA_PATH=${1:-"./processed/sft_train.jsonl"}
-OUTPUT_DIR=${2:-"../../checkpoints/qwen3_30b_qlora"}
-RUN_NAME=${3:-"qwen3_30b_qlora_$(date +%Y%m%d_%H%M%S)"}
+OUTPUT_DIR=${2:-"../../checkpoints/${EXPERIMENT_NAME}_${TIMESTAMP}"}
+RUN_NAME=${3:-"${EXPERIMENT_NAME}_${TIMESTAMP}"}
 MODEL_NAME="Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # wandb 설정
@@ -125,7 +128,7 @@ torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
     --warmup_steps $WARMUP_STEPS \
     --lr_scheduler_type "cosine" \
     --logging_strategy "steps" \
-    --logging_steps 1 \
+    --logging_steps 10 \
     --report_to "wandb" \
     --run_name $RUN_NAME \
     --bf16 True \
