@@ -5,19 +5,33 @@
 #   - NVIDIA GPU (A100 40GB 이상 권장)
 #   - CUDA 12.1+
 #   - bitsandbytes 설치됨
+#   - wandb 설치됨 (pip install wandb)
 #
 # 사용법:
-#   bash scripts/qlora_qwen3_30b.sh [DATA_PATH] [OUTPUT_DIR]
+#   bash scripts/qlora_qwen3_30b.sh [DATA_PATH] [OUTPUT_DIR] [WANDB_RUN_NAME]
 #
 # 예시:
-#   bash scripts/qlora_qwen3_30b.sh ../../data/processed/sft_train.jsonl ../../checkpoints/qwen3_30b_qlora
+#   bash scripts/qlora_qwen3_30b.sh ../../data/processed/sft_train.jsonl ../../checkpoints/qwen3_30b_qlora my_experiment
 
 export NCCL_DEBUG=WARN
 
 # 파라미터 설정
 DATA_PATH=${1:-"../../data/processed/sft_train.jsonl"}
 OUTPUT_DIR=${2:-"../../checkpoints/qwen3_30b_qlora"}
+RUN_NAME=${3:-"qwen3_30b_qlora_$(date +%Y%m%d_%H%M%S)"}
 MODEL_NAME="Qwen/Qwen3-Coder-30B-A3B-Instruct"
+
+# wandb 설정
+export WANDB_PROJECT=${WANDB_PROJECT:-"qwen3-coder-finetune"}
+export WANDB_MODE=${WANDB_MODE:-"online"}
+
+# wandb 로그인 확인
+if ! wandb status > /dev/null 2>&1; then
+    echo "=========================================="
+    echo "wandb 로그인이 필요합니다."
+    echo "=========================================="
+    wandb login
+fi
 
 # GPU 수 자동 감지
 GPUS_PER_NODE=$(python -c "import torch; print(torch.cuda.device_count())")
@@ -41,6 +55,8 @@ echo "Max Length: $MAX_LENGTH"
 echo "Batch Size: $BATCH_SIZE x $GRAD_ACCU (grad accum)"
 echo "Learning Rate: $LR"
 echo "Epochs: $EPOCHS"
+echo "wandb Project: $WANDB_PROJECT"
+echo "wandb Run: $RUN_NAME"
 echo "=========================================="
 
 torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
@@ -62,7 +78,8 @@ torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
     --lr_scheduler_type "cosine" \
     --logging_strategy "steps" \
     --logging_steps 1 \
-    --report_to "tensorboard" \
+    --report_to "wandb" \
+    --run_name $RUN_NAME \
     --bf16 True \
     --use_qlora True \
     --bnb_4bit_quant_type nf4 \
