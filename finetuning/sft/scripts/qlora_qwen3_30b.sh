@@ -51,6 +51,9 @@ fi
 
 export NCCL_DEBUG=WARN
 
+# 메모리 최적화
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 # 파라미터 설정
 DATA_PATH=${1:-"./processed/sft_train.jsonl"}
 OUTPUT_DIR=${2:-"../../checkpoints/qwen3_30b_qlora"}
@@ -129,7 +132,9 @@ torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
     --use_qlora True \
     --bnb_4bit_quant_type nf4 \
     --bnb_4bit_compute_dtype bfloat16 \
-    --peft_config_path ./configs/lora
+    --peft_config_path ./configs/lora \
+    --gradient_checkpointing True \
+    --optim "paged_adamw_8bit"
 
 echo "=========================================="
 echo "Training completed!"
