@@ -6,6 +6,12 @@ __pycache__/
 .DS_Store
 .gitconfig
 
+# Cache directories
+.cache/
+checkpoints/
+models/
+data/
+
 # C extensions
 *.so
 

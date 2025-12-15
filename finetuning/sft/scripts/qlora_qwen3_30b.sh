@@ -20,6 +20,27 @@ SFT_DIR=$(dirname "$SCRIPT_DIR")
 cd "$SFT_DIR"
 echo "Working directory: $(pwd)"
 
+# 프로젝트 루트 경로 (finetuning/sft 기준 2단계 상위)
+PROJECT_ROOT=$(cd "../.." && pwd)
+CACHE_DIR="${PROJECT_ROOT}/.cache"
+
+# 캐시 디렉토리 생성
+mkdir -p "${CACHE_DIR}/huggingface"
+mkdir -p "${CACHE_DIR}/torch"
+mkdir -p "${CACHE_DIR}/wandb"
+
+# 모든 캐시를 프로젝트 폴더로 설정
+export HF_HOME="${CACHE_DIR}/huggingface"
+export HF_DATASETS_CACHE="${CACHE_DIR}/huggingface/datasets"
+export TRANSFORMERS_CACHE="${CACHE_DIR}/huggingface/transformers"
+export HUGGINGFACE_HUB_CACHE="${CACHE_DIR}/huggingface/hub"
+export TORCH_HOME="${CACHE_DIR}/torch"
+export WANDB_DIR="${CACHE_DIR}/wandb"
+export WANDB_CACHE_DIR="${CACHE_DIR}/wandb"
+export XDG_CACHE_HOME="${CACHE_DIR}"
+
+echo "Cache directory: ${CACHE_DIR}"
+
 # train.py 존재 확인
 if [ ! -f "train.py" ]; then
     echo "ERROR: train.py not found in $(pwd)"
