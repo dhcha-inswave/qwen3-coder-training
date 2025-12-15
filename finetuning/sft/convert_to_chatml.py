@@ -353,8 +353,20 @@ def convert_and_tokenize(input_dir: str, output_path: str, model_path: str,
         print("pip install transformers 실행 후 다시 시도하세요.")
         return
 
+    # 캐시 디렉토리 설정 (프로젝트 .cache 폴더 사용)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    cache_dir = os.path.join(project_root, ".cache", "huggingface")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # 환경변수 설정
+    os.environ["HF_HOME"] = cache_dir
+    os.environ["TRANSFORMERS_CACHE"] = cache_dir
+    os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
+
     print(f"\n{'='*60}")
     print(f"Loading tokenizer from: {model_path}")
+    print(f"Cache directory: {cache_dir}")
     print(f"{'='*60}\n")
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -363,7 +375,7 @@ def convert_and_tokenize(input_dir: str, output_path: str, model_path: str,
         add_bos_token=False,
         pad_token='<|endoftext|>',
         eos_token='<|im_end|>',
-        cache_dir=None,
+        cache_dir=cache_dir,
         model_max_length=max_len * 5,
         truncation=True,
         padding_side="right",

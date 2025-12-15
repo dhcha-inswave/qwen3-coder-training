@@ -201,13 +201,27 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     print(args)
+
+    # 캐시 디렉토리 설정 (프로젝트 .cache 폴더 사용)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    cache_dir = os.path.join(project_root, ".cache", "huggingface")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # 환경변수 설정
+    os.environ["HF_HOME"] = cache_dir
+    os.environ["TRANSFORMERS_CACHE"] = cache_dir
+    os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
+
+    print(f"Cache directory: {cache_dir}")
+
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         args.tokenizer_path,
         add_eos_token=False,
         add_bos_token=False,
         pad_token='<|endoftext|>',
-        eos_token='<|im_end|>', 
-        cache_dir=None,
+        eos_token='<|im_end|>',
+        cache_dir=cache_dir,
         model_max_length=8192 * 5,
         truncation=True,
         padding_side="right",
