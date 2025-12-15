@@ -7,30 +7,46 @@
 #   - bitsandbytes 설치됨
 #   - wandb 설치됨 (pip install wandb)
 #
-# 사용법:
+# 사용법 (finetuning/sft 디렉토리에서 실행):
+#   cd finetuning/sft
 #   bash scripts/qlora_qwen3_30b.sh [DATA_PATH] [OUTPUT_DIR] [WANDB_RUN_NAME]
 #
 # 예시:
-#   bash scripts/qlora_qwen3_30b.sh ../../data/processed/sft_train.jsonl ../../checkpoints/qwen3_30b_qlora my_experiment
+#   bash scripts/qlora_qwen3_30b.sh ./processed/sft_train.jsonl ../../checkpoints/qwen3_30b_qlora my_experiment
+
+# 스크립트 위치 기준으로 sft 디렉토리로 이동
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SFT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$SFT_DIR"
+echo "Working directory: $(pwd)"
 
 export NCCL_DEBUG=WARN
 
 # 파라미터 설정
-DATA_PATH=${1:-"../../data/processed/sft_train.jsonl"}
+DATA_PATH=${1:-"./processed/sft_train.jsonl"}
 OUTPUT_DIR=${2:-"../../checkpoints/qwen3_30b_qlora"}
-RUN_NAME=${3:-"qwen3_30b_qlora_test_$(date +%Y%m%d_%H%M%S)"}
+RUN_NAME=${3:-"qwen3_30b_qlora_$(date +%Y%m%d_%H%M%S)"}
 MODEL_NAME="Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # wandb 설정
 export WANDB_PROJECT=${WANDB_PROJECT:-"qwen3-coder-finetune"}
 export WANDB_MODE=${WANDB_MODE:-"online"}
 
+# wandb 설치 확인
+if ! python -c "import wandb" 2>/dev/null; then
+    echo "=========================================="
+    echo "wandb가 설치되어 있지 않습니다. 설치합니다..."
+    echo "=========================================="
+    pip install wandb
+fi
+
 # wandb 로그인 확인
-if ! wandb status > /dev/null 2>&1; then
+if ! python -c "import wandb; wandb.api.api_key" 2>/dev/null; then
     echo "=========================================="
     echo "wandb 로그인이 필요합니다."
+    echo "https://wandb.ai/authorize 에서 API 키를 복사하세요."
     echo "=========================================="
-    wandb login
+    python -m wandb login
 fi
 
 # GPU 수 자동 감지
