@@ -69,10 +69,35 @@ python convert_to_chatml.py ./raw --tokenize -o ./processed/sft_train.jsonl
 python convert_to_chatml.py ./raw --tokenize -s "You are a helpful coding assistant."
 ```
 
+### Train/Eval 데이터 분리
+
+```bash
+# 토큰화 + train/eval 자동 분리 (기본 10%)
+python convert_to_chatml.py ./raw --tokenize --split
+
+# eval 비율 지정 (20%)
+python convert_to_chatml.py ./raw --tokenize --split --eval_ratio 0.2
+
+# 랜덤 시드 지정
+python convert_to_chatml.py ./raw --tokenize --split --seed 42
+```
+
+**출력 파일:**
+- `./processed/sft_train_train.jsonl` - 학습 데이터 (90%)
+- `./processed/sft_train_eval.jsonl` - 평가 데이터 (10%)
+
+**학습 시 eval 데이터 사용:**
+```bash
+EVAL_DATA_PATH="./processed/sft_train_eval.jsonl" bash scripts/qlora_qwen3_30b.sh
+```
+
 **토큰화 옵션:**
 - `--tokenize`, `-t`: 토큰화 활성화 (input_ids/label 생성)
 - `--model`, `-m`: 토크나이저 모델 경로 (기본: `Qwen/Qwen3-Coder-30B-A3B-Instruct`)
 - `--max_len`: 최대 시퀀스 길이 (기본: 2048)
+- `--split`: train/eval 분리 활성화
+- `--eval_ratio`: eval 데이터 비율 (기본: 0.1)
+- `--seed`: 랜덤 시드 (기본: 42)
 
 ### 데이터 변환만 (ChatML 형식)
 
@@ -119,8 +144,61 @@ bash scripts/qlora_qwen3_30b.sh
 # 커스텀 설정
 bash scripts/qlora_qwen3_30b.sh ./processed/sft_train.jsonl ../../checkpoints/my_model my_experiment
 
+# 실험 이름 변경
+EXPERIMENT_NAME="my_experiment" bash scripts/qlora_qwen3_30b.sh
+
 # wandb 프로젝트 변경
 WANDB_PROJECT="my-project" bash scripts/qlora_qwen3_30b.sh
+```
+
+#### QLoRA 스크립트 기본 설정
+
+| 카테고리 | 파라미터 | 기본값 | 설명 |
+|---------|---------|--------|------|
+| **모델** | `MODEL_NAME` | `Qwen/Qwen3-Coder-30B-A3B-Instruct` | 베이스 모델 |
+| **데이터** | `DATA_PATH` | `./processed/sft_train.jsonl` | 학습 데이터 경로 |
+| | `EVAL_DATA_PATH` | `(none)` | 평가 데이터 경로 |
+| | `MAX_LENGTH` | `2048` | 최대 시퀀스 길이 |
+| **평가** | `EVAL_STEPS` | `50` | 평가 간격 (steps) |
+| **학습** | `BATCH_SIZE` | `1` | 배치 크기 |
+| | `GRAD_ACCU` | `16` | Gradient Accumulation Steps |
+| | `LR` | `1e-4` | Learning Rate |
+| | `EPOCHS` | `3` | 학습 에폭 |
+| | `WARMUP_STEPS` | `10` | Warmup Steps |
+| **QLoRA** | `bnb_4bit_quant_type` | `nf4` | 4비트 양자화 타입 |
+| | `bnb_4bit_compute_dtype` | `bfloat16` | 연산 dtype |
+| **메모리 최적화** | `gradient_checkpointing` | `True` | 메모리 절약 |
+| | `optim` | `paged_adamw_8bit` | 8비트 옵티마이저 |
+| **저장** | `save_steps` | `50` | 체크포인트 저장 간격 |
+| | `save_total_limit` | `3` | 최대 체크포인트 수 |
+| **로깅** | `logging_steps` | `10` | 로그 출력 간격 |
+| | `report_to` | `wandb` | 로깅 대상 |
+
+#### 환경 변수로 설정 변경
+
+```bash
+# 실험 이름 (OUTPUT_DIR, RUN_NAME에 사용)
+EXPERIMENT_NAME="my_exp" bash scripts/qlora_qwen3_30b.sh
+
+# 평가 데이터 경로 지정
+EVAL_DATA_PATH="./processed/sft_train_eval.jsonl" bash scripts/qlora_qwen3_30b.sh
+
+# 평가 간격 변경
+EVAL_STEPS=100 EVAL_DATA_PATH="./processed/sft_train_eval.jsonl" bash scripts/qlora_qwen3_30b.sh
+
+# wandb 프로젝트
+WANDB_PROJECT="my-project" bash scripts/qlora_qwen3_30b.sh
+
+# wandb 오프라인 모드
+WANDB_MODE="offline" bash scripts/qlora_qwen3_30b.sh
+```
+
+#### 출력 경로
+
+실행 시 타임스탬프가 자동으로 추가됩니다:
+```
+checkpoints/{EXPERIMENT_NAME}_{TIMESTAMP}/
+예: checkpoints/qwen3_30b_qlora_20241215_183000/
 ```
 
 **VRAM 요구사항:**
@@ -185,6 +263,7 @@ finetuning/sft/
 
 ## 데이터 처리 흐름
 
+### 기본 (train만)
 ```
 raw/*.jsonl (다양한 형식)
        ↓
@@ -194,7 +273,21 @@ processed/sft_train.jsonl (토큰화됨)
        ↓
 bash scripts/qlora_qwen3_30b.sh
        ↓
-checkpoints/qwen3_30b_qlora (학습된 어댑터)
+checkpoints/qwen3_30b_qlora_YYYYMMDD_HHMMSS/
+```
+
+### Train/Eval 분리
+```
+raw/*.jsonl (다양한 형식)
+       ↓
+python convert_to_chatml.py ./raw --tokenize --split
+       ↓
+processed/sft_train_train.jsonl (90%)
+processed/sft_train_eval.jsonl (10%)
+       ↓
+EVAL_DATA_PATH="./processed/sft_train_eval.jsonl" bash scripts/qlora_qwen3_30b.sh
+       ↓
+checkpoints/qwen3_30b_qlora_YYYYMMDD_HHMMSS/
 ```
 
 ---

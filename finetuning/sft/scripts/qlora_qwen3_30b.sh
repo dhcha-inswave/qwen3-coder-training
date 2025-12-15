@@ -59,6 +59,7 @@ EXPERIMENT_NAME=${EXPERIMENT_NAME:-"qwen3_30b_qlora"}
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 DATA_PATH=${1:-"./processed/sft_train.jsonl"}
+EVAL_DATA_PATH=${EVAL_DATA_PATH:-""}
 OUTPUT_DIR=${2:-"../../checkpoints/${EXPERIMENT_NAME}_${TIMESTAMP}"}
 RUN_NAME=${3:-"${EXPERIMENT_NAME}_${TIMESTAMP}"}
 MODEL_NAME="Qwen/Qwen3-Coder-30B-A3B-Instruct"
@@ -96,11 +97,15 @@ LR=1e-4
 EPOCHS=3
 WARMUP_STEPS=10
 
+# 평가 설정
+EVAL_STEPS=${EVAL_STEPS:-50}
+
 echo "=========================================="
 echo "QLoRA Training: Qwen3-Coder-30B-A3B-Instruct"
 echo "=========================================="
 echo "Model: $MODEL_NAME"
-echo "Data: $DATA_PATH"
+echo "Train Data: $DATA_PATH"
+echo "Eval Data: ${EVAL_DATA_PATH:-"(none)"}"
 echo "Output: $OUTPUT_DIR"
 echo "Max Length: $MAX_LENGTH"
 echo "Batch Size: $BATCH_SIZE x $GRAD_ACCU (grad accum)"
@@ -110,16 +115,26 @@ echo "wandb Project: $WANDB_PROJECT"
 echo "wandb Run: $RUN_NAME"
 echo "=========================================="
 
+# eval 데이터 유무에 따라 eval_strategy 설정
+if [ -n "$EVAL_DATA_PATH" ] && [ -f "$EVAL_DATA_PATH" ]; then
+    EVAL_STRATEGY="steps"
+    EVAL_ARGS="--eval_data_path $EVAL_DATA_PATH --eval_steps $EVAL_STEPS"
+else
+    EVAL_STRATEGY="no"
+    EVAL_ARGS=""
+fi
+
 torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
     --model_name_or_path $MODEL_NAME \
     --data_path $DATA_PATH \
+    $EVAL_ARGS \
     --model_max_length $MAX_LENGTH \
     --output_dir $OUTPUT_DIR \
     --num_train_epochs $EPOCHS \
     --per_device_train_batch_size $BATCH_SIZE \
     --gradient_accumulation_steps $GRAD_ACCU \
     --per_device_eval_batch_size 1 \
-    --eval_strategy "no" \
+    --eval_strategy $EVAL_STRATEGY \
     --save_strategy "steps" \
     --save_steps 50 \
     --save_total_limit 3 \

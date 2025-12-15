@@ -25,6 +25,7 @@ class ModelArguments:
 @dataclass
 class DataArguments:
     data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    eval_data_path: str = field(default=None, metadata={"help": "Path to the evaluation data."})
 
 
 @dataclass
@@ -111,12 +112,23 @@ class DataCollatorForSupervisedDataset(object):
 
 def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
+    # Train dataset
     if args.data_path.endswith(".npy") or args.data_path.endswith(".jsonl"):
         train_dataset = training_datasets.SupervisedDataset(tokenizer=tokenizer, data_path=args.data_path, args=args)
     elif args.data_path.endswith(".mmap"):
         train_dataset = training_datasets.MMAPSupervisedDataset(tokenizer=tokenizer, data_path=args.data_path, args=args)
+
+    # Eval dataset (optional)
+    eval_dataset = None
+    if args.eval_data_path:
+        if args.eval_data_path.endswith(".npy") or args.eval_data_path.endswith(".jsonl"):
+            eval_dataset = training_datasets.SupervisedDataset(tokenizer=tokenizer, data_path=args.eval_data_path, args=args)
+        elif args.eval_data_path.endswith(".mmap"):
+            eval_dataset = training_datasets.MMAPSupervisedDataset(tokenizer=tokenizer, data_path=args.eval_data_path, args=args)
+        logging.info(f"Loaded eval dataset from {args.eval_data_path}")
+
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
+    return dict(train_dataset=train_dataset, eval_dataset=eval_dataset, data_collator=data_collator)
 
 
 def is_master():

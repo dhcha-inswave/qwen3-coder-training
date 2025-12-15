@@ -460,6 +460,145 @@ def convert_and_tokenize(input_dir: str, output_path: str, model_path: str,
     print(f"{'='*60}\n")
 
 
+def convert_and_tokenize_with_split(input_dir: str, output_path: str, model_path: str,
+                                     max_len: int = 2048, system_prompt: Optional[str] = None,
+                                     eval_ratio: float = 0.1, seed: int = 42) -> None:
+    """디렉토리 내 모든 파일을 변환 + 토큰화하여 train/eval로 분리"""
+    import random
+
+    try:
+        import transformers
+    except ImportError:
+        print("ERROR: transformers가 설치되어 있지 않습니다.")
+        print("pip install transformers 실행 후 다시 시도하세요.")
+        return
+
+    # 캐시 디렉토리 설정 (프로젝트 .cache 폴더 사용)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    cache_dir = os.path.join(project_root, ".cache", "huggingface")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    os.environ["HF_HOME"] = cache_dir
+    os.environ["TRANSFORMERS_CACHE"] = cache_dir
+    os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
+
+    print(f"\n{'='*60}")
+    print(f"Loading tokenizer from: {model_path}")
+    print(f"Cache directory: {cache_dir}")
+    print(f"{'='*60}\n")
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_path,
+        add_eos_token=False,
+        add_bos_token=False,
+        pad_token='<|endoftext|>',
+        eos_token='<|im_end|>',
+        cache_dir=cache_dir,
+        model_max_length=max_len * 5,
+        truncation=True,
+        padding_side="right",
+        trust_remote_code=True
+    )
+    tokenizer.add_special_tokens({
+        "additional_special_tokens": [
+            "<|fim_prefix|>", "<|fim_middle|>", "<|fim_suffix|>", "<|repo_name|>",
+            "<|file_sep|>", "<|im_start|>", "<|im_end|>"
+        ]
+    })
+
+    # 지원 확장자
+    extensions = ['*.jsonl', '*.json']
+    files = []
+    for ext in extensions:
+        files.extend(glob.glob(os.path.join(input_dir, ext)))
+        files.extend(glob.glob(os.path.join(input_dir, '**', ext), recursive=True))
+
+    files = list(set(files))
+
+    if not files:
+        print(f"No JSON/JSONL files found in {input_dir}")
+        return
+
+    # 모든 데이터를 먼저 수집
+    all_data = []
+
+    print(f"\n{'='*60}")
+    print(f"Converting + Tokenizing {len(files)} files from: {input_dir}")
+    print(f"Max length: {max_len}")
+    print(f"Eval ratio: {eval_ratio}")
+    print(f"{'='*60}\n")
+
+    for filepath in sorted(files):
+        filename = os.path.relpath(filepath, input_dir)
+        converted_count = 0
+        skipped_count = 0
+
+        with open(filepath, 'r', encoding='utf-8') as infile:
+            for line in infile:
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    skipped_count += 1
+                    continue
+
+                converted = convert_to_chatml(obj, system_prompt)
+                if not converted:
+                    skipped_count += 1
+                    continue
+
+                tokenized = tokenize_chatml(
+                    converted["messages"],
+                    tokenizer,
+                    max_len=max_len,
+                    system_message=system_prompt or "You are a helpful assistant."
+                )
+
+                if tokenized:
+                    all_data.append(tokenized)
+                    converted_count += 1
+                else:
+                    skipped_count += 1
+
+        print(f"  {filename}: {converted_count} converted, {skipped_count} skipped")
+
+    # 데이터 셔플 및 분리
+    random.seed(seed)
+    random.shuffle(all_data)
+
+    split_idx = int(len(all_data) * (1 - eval_ratio))
+    train_data = all_data[:split_idx]
+    eval_data = all_data[split_idx:]
+
+    # 출력 경로 설정
+    output_dir = os.path.dirname(output_path) if os.path.dirname(output_path) else "."
+    base_name = os.path.basename(output_path).replace('.jsonl', '')
+    train_path = os.path.join(output_dir, f"{base_name}_train.jsonl")
+    eval_path = os.path.join(output_dir, f"{base_name}_eval.jsonl")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Train 데이터 저장
+    with open(train_path, 'w', encoding='utf-8') as f:
+        for item in train_data:
+            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+    # Eval 데이터 저장
+    with open(eval_path, 'w', encoding='utf-8') as f:
+        for item in eval_data:
+            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+    print(f"\n{'='*60}")
+    print(f"Total: {len(all_data)} samples")
+    print(f"Train: {len(train_data)} samples -> {train_path}")
+    print(f"Eval: {len(eval_data)} samples -> {eval_path}")
+    print(f"{'='*60}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Convert various JSON formats to ChatML format',
@@ -488,6 +627,11 @@ def main():
     parser.add_argument('--model', '-m', type=str, default='Qwen/Qwen3-Coder-30B-A3B-Instruct', help='Model path for tokenizer')
     parser.add_argument('--max_len', type=int, default=2048, help='Maximum sequence length')
 
+    # Train/Eval 분리 옵션
+    parser.add_argument('--split', action='store_true', help='Split data into train/eval sets')
+    parser.add_argument('--eval_ratio', type=float, default=0.1, help='Ratio of eval data (default: 0.1)')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for split')
+
     # 기존 방식: named arguments
     parser.add_argument('-input_path', type=str, help='Single input file path')
     parser.add_argument('-output_path', type=str, help='Single output file path')
@@ -502,11 +646,15 @@ def main():
     # system prompt 통합 (둘 중 하나 사용)
     system_prompt = args.system or args.system_prompt
 
-    # 1. 토큰화 모드: python convert_to_chatml.py ./raw --tokenize
-    if args.input and os.path.isdir(args.input) and args.tokenize:
+    # 1. 토큰화 + train/eval 분리 모드
+    if args.input and os.path.isdir(args.input) and args.tokenize and args.split:
+        convert_and_tokenize_with_split(args.input, args.output, args.model, args.max_len, system_prompt, args.eval_ratio, args.seed)
+
+    # 2. 토큰화 모드: python convert_to_chatml.py ./raw --tokenize
+    elif args.input and os.path.isdir(args.input) and args.tokenize:
         convert_and_tokenize(args.input, args.output, args.model, args.max_len, system_prompt)
 
-    # 2. 간단한 방식: python convert_to_chatml.py ./raw
+    # 3. 간단한 방식: python convert_to_chatml.py ./raw
     elif args.input and os.path.isdir(args.input):
         convert_directory_to_single_file(args.input, args.output, system_prompt)
 
