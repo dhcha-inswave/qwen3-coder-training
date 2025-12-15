@@ -92,7 +92,7 @@ torchrun --nproc_per_node=$GPUS_PER_NODE train.py \
     --per_device_train_batch_size $BATCH_SIZE \
     --gradient_accumulation_steps $GRAD_ACCU \
     --per_device_eval_batch_size 1 \
-    --evaluation_strategy "no" \
+    --eval_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50 \
     --save_total_limit 3 \
