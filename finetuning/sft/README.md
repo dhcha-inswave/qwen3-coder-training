@@ -13,8 +13,8 @@ pip install -r requirements.txt
 # 2. 데이터 준비 (raw 폴더에 데이터 넣기)
 mkdir -p raw processed
 
-# 3. 데이터 변환 (다양한 형식 → ChatML) - 폴더만 지정하면 끝!
-python convert_to_chatml.py ./raw
+# 3. 데이터 변환 + 토큰화 (한 번에!)
+python convert_to_chatml.py ./raw --tokenize
 
 # 4. QLoRA 학습 실행
 bash scripts/qlora_qwen3_30b.sh
@@ -53,17 +53,35 @@ pip install -r requirements.txt
 | prompt/completion | `{"prompt": "...", "completion": "..."}` |
 | messages (ChatML) | 그대로 유지 |
 
-### 데이터 변환
+### 데이터 변환 + 토큰화 (권장)
 
 ```bash
-# 간단하게 폴더만 지정 (권장)
+# 변환 + 토큰화 한 번에 (학습용 데이터 생성)
+python convert_to_chatml.py ./raw --tokenize
+
+# 모델과 max_len 지정
+python convert_to_chatml.py ./raw --tokenize --model Qwen/Qwen3-Coder-30B-A3B-Instruct --max_len 2048
+
+# 출력 경로 지정
+python convert_to_chatml.py ./raw --tokenize -o ./processed/sft_train.jsonl
+
+# system prompt 추가
+python convert_to_chatml.py ./raw --tokenize -s "You are a helpful coding assistant."
+```
+
+**토큰화 옵션:**
+- `--tokenize`, `-t`: 토큰화 활성화 (input_ids/label 생성)
+- `--model`, `-m`: 토크나이저 모델 경로 (기본: `Qwen/Qwen3-Coder-30B-A3B-Instruct`)
+- `--max_len`: 최대 시퀀스 길이 (기본: 2048)
+
+### 데이터 변환만 (ChatML 형식)
+
+```bash
+# ChatML 형식으로만 변환 (토큰화 없음)
 python convert_to_chatml.py ./raw
 
 # 출력 경로 지정
 python convert_to_chatml.py ./raw -o ./processed/sft_train.jsonl
-
-# system prompt 추가
-python convert_to_chatml.py ./raw -s "You are a helpful coding assistant."
 
 # 기존 방식도 지원
 python convert_to_chatml.py -input_dir ./raw -output_dir ./raw_converted -merge
@@ -74,22 +92,19 @@ python convert_to_chatml.py -input_dir ./raw -output_dir ./raw_converted -merge
 - 모든 파일을 하나로 병합
 - 기본 출력: `./processed/sft_train.jsonl`
 
-### ChatML 형식 (최종 형식)
+### 데이터 형식
 
+**입력 (raw/):** 다양한 형식 지원
 ```json
-{
-    "messages": [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Write a regex expression to match any letter"},
-        {"role": "assistant", "content": "The regex expression is: [a-zA-Z]"}
-    ]
-}
+{"input": "질문", "output": "답변"}
+{"instruction": "지시", "response": "응답"}
+{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
 ```
 
-**참고:**
-- `system` role은 선택사항
-- `"format": "chatml"` 필드는 필요 없음
-- 한 줄에 하나의 JSON 객체 (JSONL 형식)
+**출력 (processed/):** 토큰화된 형식 (train.py가 사용)
+```json
+{"input_ids": [1, 2, 3, ...], "label": [-100, -100, 3, ...]}
+```
 
 ---
 
@@ -150,8 +165,8 @@ python merge_adapter.py \
 ```
 finetuning/sft/
 ├── raw/                    # 원본 데이터 (다양한 형식)
-├── raw_converted/          # ChatML로 변환된 데이터
-├── processed/              # 최종 학습 데이터
+├── processed/              # 토큰화된 학습 데이터
+│   └── sft_train.jsonl     # {"input_ids": [...], "label": [...]}
 ├── configs/
 │   ├── lora/              # LoRA 설정
 │   └── default_offload_opt_param.json
@@ -159,11 +174,27 @@ finetuning/sft/
 │   ├── qlora_qwen3_30b.sh # QLoRA 학습 스크립트
 │   ├── sft_qwencoder.sh   # Full FT 스크립트
 │   └── sft_qwencoder_with_lora.sh
-├── convert_to_chatml.py   # 데이터 변환 스크립트
-├── binarize_data.py       # 데이터 전처리
+├── convert_to_chatml.py   # 데이터 변환 + 토큰화
+├── binarize_data.py       # 데이터 전처리 (멀티프로세스)
 ├── train.py               # 학습 메인
 ├── merge_adapter.py       # 어댑터 병합
 └── requirements.txt
+```
+
+---
+
+## 데이터 처리 흐름
+
+```
+raw/*.jsonl (다양한 형식)
+       ↓
+python convert_to_chatml.py ./raw --tokenize
+       ↓
+processed/sft_train.jsonl (토큰화됨)
+       ↓
+bash scripts/qlora_qwen3_30b.sh
+       ↓
+checkpoints/qwen3_30b_qlora (학습된 어댑터)
 ```
 
 ---
@@ -201,4 +232,16 @@ rm -rf ~/.cache/huggingface
 ### bitsandbytes not found
 ```bash
 pip install bitsandbytes>=0.41.0
+```
+
+### target_modules 오류
+`configs/lora/adapter_config.json`에서 `target_modules`가 설정되어 있는지 확인:
+```json
+"target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+```
+
+### KeyError: 'input_ids'
+데이터가 토큰화되지 않았습니다. `--tokenize` 옵션을 사용하세요:
+```bash
+python convert_to_chatml.py ./raw --tokenize
 ```
