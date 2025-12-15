@@ -15,10 +15,18 @@
 #   bash scripts/qlora_qwen3_30b.sh ./processed/sft_train.jsonl ../../checkpoints/qwen3_30b_qlora my_experiment
 
 # 스크립트 위치 기준으로 sft 디렉토리로 이동
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SFT_DIR="$(dirname "$SCRIPT_DIR")"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+SFT_DIR=$(dirname "$SCRIPT_DIR")
 cd "$SFT_DIR"
 echo "Working directory: $(pwd)"
+
+# train.py 존재 확인
+if [ ! -f "train.py" ]; then
+    echo "ERROR: train.py not found in $(pwd)"
+    echo "Please run from finetuning/sft directory:"
+    echo "  cd finetuning/sft && bash scripts/qlora_qwen3_30b.sh"
+    exit 1
+fi
 
 export NCCL_DEBUG=WARN
 
