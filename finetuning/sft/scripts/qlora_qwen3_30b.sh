@@ -18,7 +18,7 @@ export NCCL_DEBUG=WARN
 # 파라미터 설정
 DATA_PATH=${1:-"../../data/processed/sft_train.jsonl"}
 OUTPUT_DIR=${2:-"../../checkpoints/qwen3_30b_qlora"}
-RUN_NAME=${3:-"qwen3_30b_qlora_$(date +%Y%m%d_%H%M%S)"}
+RUN_NAME=${3:-"qwen3_30b_qlora_test_$(date +%Y%m%d_%H%M%S)"}
 MODEL_NAME="Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # wandb 설정
