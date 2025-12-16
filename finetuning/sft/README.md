@@ -207,7 +207,50 @@ checkpoints/{EXPERIMENT_NAME}_{TIMESTAMP}/
 | 7B | ~8GB | ~16GB | ~60GB |
 | 30B-A3B | ~18GB | ~35GB | ~220GB |
 
-### Option B: LoRA 학습
+### Option B: Unsloth QLoRA 학습 (2-5배 빠름)
+
+Unsloth는 2-5배 빠른 학습 속도와 70% 적은 메모리 사용을 제공합니다.
+
+```bash
+# 설치 (최초 1회)
+pip install unsloth
+
+# 기본 실행
+bash scripts/unsloth_qwen3_30b.sh
+
+# eval 데이터 포함
+EVAL_DATA_PATH="./processed/sft_train_eval.jsonl" bash scripts/unsloth_qwen3_30b.sh
+
+# 배치 크기 조정 (GPU 메모리에 따라)
+BATCH_SIZE=4 bash scripts/unsloth_qwen3_30b.sh
+```
+
+#### Unsloth 스크립트 기본 설정
+
+| 카테고리 | 파라미터 | 기본값 | 설명 |
+|---------|---------|--------|------|
+| **모델** | `MODEL_NAME` | `Qwen/Qwen3-Coder-30B-A3B-Instruct` | 베이스 모델 |
+| **데이터** | `DATA_PATH` | `./processed/sft_train.jsonl` | 학습 데이터 경로 |
+| | `MAX_SEQ_LENGTH` | `2048` | 최대 시퀀스 길이 |
+| **학습** | `BATCH_SIZE` | `2` | 배치 크기 |
+| | `GRAD_ACCUM` | `8` | Gradient Accumulation Steps |
+| | `LR` | `2e-4` | Learning Rate |
+| | `EPOCHS` | `3` | 학습 에폭 |
+| **LoRA** | `LORA_R` | `16` | LoRA rank |
+| | `LORA_ALPHA` | `32` | LoRA alpha |
+| | `LORA_DROPOUT` | `0.05` | LoRA dropout |
+| **로깅** | `logging_steps` | `10` | 로그 출력 간격 |
+
+#### QLoRA vs Unsloth 비교
+
+| 항목 | QLoRA (bitsandbytes) | Unsloth |
+|-----|---------------------|---------|
+| 학습 속도 | 기본 | 2-5배 빠름 |
+| 메모리 사용 | 기본 | ~70% 절약 |
+| 설치 | `pip install bitsandbytes` | `pip install unsloth` |
+| GPU 지원 | 모든 NVIDIA GPU | NVIDIA GPU (최적화) |
+
+### Option C: LoRA 학습
 
 ```bash
 bash scripts/sft_qwencoder_with_lora.sh \
@@ -216,7 +259,7 @@ bash scripts/sft_qwencoder_with_lora.sh \
     ../../checkpoints/lora_model
 ```
 
-### Option C: Full Fine-tuning
+### Option D: Full Fine-tuning
 
 ```bash
 bash scripts/sft_qwencoder.sh \
