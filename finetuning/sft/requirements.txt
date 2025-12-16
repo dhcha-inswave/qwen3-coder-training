@@ -98,3 +98,4 @@ zipp==3.21.0
 flash_attn==2.7.3
 bitsandbytes>=0.41.0
 wandb>=0.15.0
+unsloth>=2024.8
