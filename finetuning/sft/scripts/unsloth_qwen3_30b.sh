@@ -41,6 +41,15 @@ export WANDB_DIR="${CACHE_DIR}/wandb"
 export WANDB_CACHE_DIR="${CACHE_DIR}/wandb"
 export XDG_CACHE_HOME="${CACHE_DIR}"
 
+# Triton 캐시 (Unsloth 사용 시 필요)
+mkdir -p "${CACHE_DIR}/triton"
+export TRITON_CACHE_DIR="${CACHE_DIR}/triton"
+export TRITON_HOME="${CACHE_DIR}/triton"
+
+# PyTorch Inductor 캐시
+mkdir -p "${CACHE_DIR}/torch_inductor"
+export TORCHINDUCTOR_CACHE_DIR="${CACHE_DIR}/torch_inductor"
+
 echo "Cache directory: ${CACHE_DIR}"
 
 # train_unsloth.py 존재 확인
