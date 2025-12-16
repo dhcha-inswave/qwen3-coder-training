@@ -24,18 +24,30 @@ bash scripts/qlora_qwen3_30b.sh
 
 ## Setup
 
-### 1. Conda 환경 생성
+### Option A: 기본 환경 (QLoRA - Python 3.9)
 
 ```bash
-conda create -n sft_env python=3.9
+conda create -n sft_env python=3.9 -y
 conda activate sft_env
-```
-
-### 2. 의존성 설치
-
-```bash
 pip install -r requirements.txt
 ```
+
+### Option B: Unsloth 환경 (Python 3.10+ 필수)
+
+Unsloth는 2-5배 빠른 학습을 제공하지만 **Python 3.10 이상**이 필요합니다.
+
+```bash
+conda create -n unsloth_env python=3.10 -y
+conda activate unsloth_env
+pip install -r requirements_py310.txt
+```
+
+### 환경 비교
+
+| 환경 | Python | 학습 속도 | 메모리 | requirements |
+|-----|--------|----------|--------|--------------|
+| `sft_env` | 3.9 | 기본 | 기본 | `requirements.txt` |
+| `unsloth_env` | 3.10+ | 2-5배 빠름 | ~70% 절약 | `requirements_py310.txt` |
 
 ---
 
