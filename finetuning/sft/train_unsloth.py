@@ -52,6 +52,7 @@ def parse_args():
     # 저장
     parser.add_argument('--output_dir', type=str, default=None, help='출력 디렉토리')
     parser.add_argument('--save_steps', type=int, default=50, help='체크포인트 저장 간격')
+    parser.add_argument('--resume_from_checkpoint', type=str, default=None, help='체크포인트 경로에서 재개')
 
     # 평가
     parser.add_argument('--eval_steps', type=int, default=50, help='평가 간격')
@@ -118,6 +119,7 @@ def main():
     print(f"LoRA r={args.lora_r}, alpha={args.lora_alpha}")
     print(f"wandb Project: {args.wandb_project}")
     print(f"wandb Run: {args.run_name}")
+    print(f"Resume from: {args.resume_from_checkpoint or '(none)'}")
     print("=" * 60)
 
     # Unsloth 임포트
@@ -226,7 +228,7 @@ def main():
 
     # 학습 시작
     print("\n학습 시작...")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
 
     # 모델 저장
     print("\n모델 저장 중...")

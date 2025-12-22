@@ -118,6 +118,9 @@ SAVE_STEPS=${SAVE_STEPS:-50}
 EVAL_STEPS=${EVAL_STEPS:-50}
 LOGGING_STEPS=${LOGGING_STEPS:-10}
 
+# 체크포인트 재개 설정
+RESUME_FROM=${RESUME_FROM:-""}
+
 echo "=========================================="
 echo "Unsloth QLoRA Training: Qwen3-Coder-30B"
 echo "=========================================="
@@ -132,6 +135,7 @@ echo "Epochs: $EPOCHS"
 echo "LoRA r=$LORA_R, alpha=$LORA_ALPHA"
 echo "wandb Project: $WANDB_PROJECT"
 echo "wandb Run: $RUN_NAME"
+echo "Resume from: ${RESUME_FROM:-\"(none)\"}"
 echo "=========================================="
 
 # eval 데이터 인자 설정
@@ -140,10 +144,17 @@ if [ -n "$EVAL_DATA_PATH" ] && [ -f "$EVAL_DATA_PATH" ]; then
     EVAL_ARGS="--eval_data_path $EVAL_DATA_PATH --eval_steps $EVAL_STEPS"
 fi
 
+# resume 인자 설정
+RESUME_ARGS=""
+if [ -n "$RESUME_FROM" ]; then
+    RESUME_ARGS="--resume_from_checkpoint $RESUME_FROM"
+fi
+
 python train_unsloth.py \
     --model_name $MODEL_NAME \
     --data_path $DATA_PATH \
     $EVAL_ARGS \
+    $RESUME_ARGS \
     --max_seq_length $MAX_SEQ_LENGTH \
     --output_dir $OUTPUT_DIR \
     --batch_size $BATCH_SIZE \
